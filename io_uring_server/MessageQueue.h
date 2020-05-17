@@ -36,14 +36,14 @@ public:
 	~MsgNode() {}
 };
 
-std::atomic_ullong msg_node_reservations[NUM_WORKER_THREADS];
+std::atomic_ullong msg_node_reservations[NUM_WORKER_THREADS + 1];
 std::atomic_ullong msg_node_epoch{ 1 };
 const unsigned int msg_node_epoch_freq = 1;
 
 
 unsigned int get_min_msg_node_reservation() {
 	unsigned long long min_re = 0xffffffffffffffff;
-	for (int i = 0; i < NUM_WORKER_THREADS; ++i) {
+	for (int i = 0; i < NUM_WORKER_THREADS + 1; ++i) {
 		min_re = std::min(min_re, msg_node_reservations[i].load(std::memory_order_acquire));
 	}
 	return min_re;

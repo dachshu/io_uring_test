@@ -585,13 +585,13 @@ void do_worker(int t)
 
 int main()
 {
-
+	tid = NUM_WORKER_THREADS;
 	epoch.store(1);
 	for (int r = 0; r < NUM_WORKER_THREADS; ++r)
 		reservations[r] = 0xffffffffffffffff;
 
 	msg_node_epoch.store(1);
-	for (int r = 0; r < NUM_WORKER_THREADS; ++r)
+	for (int r = 0; r < NUM_WORKER_THREADS  + 1; ++r)
 		msg_node_reservations[r] = 0xffffffffffffffff;
 	
 	sockaddr_in serv_addr, client_addr;
