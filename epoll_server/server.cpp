@@ -385,7 +385,7 @@ void handle_move_msg(MsgNode* msg) {
 	if (in_view && (my_clients[my_id]->near_id.count(msg->gid) != 0)) {
 		// �׳� ������ send_pos_packet
 		send_pos_packet(my_clients[my_id]->sock_fd, msg->gid, msg->x, msg->y
-			, my_clients[my_id]->move_time, my_id);
+			, msg->move_time, my_id);
 		return;
 	}
 
