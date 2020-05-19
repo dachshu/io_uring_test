@@ -64,11 +64,17 @@ void send_packet(unsigned sock_fd, ExtendedBuf* send_buf, int cid, int len)
 	if (rem_sqe_cnt <= 0) {
 		std::cout << "send ignored" << std::endl;
 		sendBufferPool[tid].return_sendBuffer(send_buf);
-		Disconnect(cid);
+		//Disconnect(cid);
 		return;
 	}
 	
 	io_uring_sqe* sqe = io_uring_get_sqe(&rings[tid]);
+	if(sqe == 0x0) {
+		std::cout << "sqe empty" << std::endl;
+		sendBufferPool[tid].return_sendBuffer(send_buf);
+		//Disconnect(cid);
+		return;
+	}	
 	io_uring_prep_send(sqe, sock_fd, send_buf->buf_addr, len, 0);
 
 	send_buf->cid = cid;
@@ -167,7 +173,7 @@ void Disconnect(int id)
 
 	//2. broadcast
 	for (auto i : my_clients[id]->broadcast_zone) {
-		zone[i % ZONE_SIZE][i / ZONE_SIZE].Broadcast(tid, id, Msg::BYE, -1, -1, my_clients[id]->gid);
+		zone[i % ZONE_SIZE][i / ZONE_SIZE].Broadcast(tid, id, Msg::BYE, -1, -1, 0, my_clients[id]->gid);
 	}
 
 
@@ -245,7 +251,7 @@ void ProcessMove(int id, unsigned char dir)
 
 	// 2. broadcast
 	for (auto i : my_clients[id]->broadcast_zone) {
-		zone[i % ZONE_SIZE][i / ZONE_SIZE].Broadcast(tid, id, Msg::MOVE, x, y, my_clients[id]->gid);
+		zone[i % ZONE_SIZE][i / ZONE_SIZE].Broadcast(tid, id, Msg::MOVE, x, y,  my_clients[id]->move_time, my_clients[id]->gid);
 	}
 	set<int> new_zone;
 	get_new_zone(new_zone, x, y);
@@ -253,7 +259,7 @@ void ProcessMove(int id, unsigned char dir)
 	// ���� ��� �� zone
 	for (auto i : new_zone) {
 		if (my_clients[id]->broadcast_zone.count(i) == 0) {
-			zone[i % ZONE_SIZE][i / ZONE_SIZE].Broadcast(tid, id, Msg::MOVE, x, y, my_clients[id]->gid);
+			zone[i % ZONE_SIZE][i / ZONE_SIZE].Broadcast(tid, id, Msg::MOVE, x, y, my_clients[id]->move_time, my_clients[id]->gid);
 		}
 	}
 	my_clients[id]->broadcast_zone.swap(new_zone);
@@ -291,7 +297,7 @@ void ProcessLogin(int user_id, char* id_str)
 	// ���� ��� �� zone
 	for (auto i : new_zone) {
 		zone[i % ZONE_SIZE][i / ZONE_SIZE].Broadcast(tid, user_id, Msg::MOVE
-			, my_clients[user_id]->x, my_clients[user_id]->y, my_clients[user_id]->gid);
+			, my_clients[user_id]->x, my_clients[user_id]->y, my_clients[user_id]->move_time, my_clients[user_id]->gid);
 	}
 	my_clients[user_id]->broadcast_zone.swap(new_zone);
 }
@@ -383,6 +389,11 @@ void handle_recv(unsigned int uid, ExtendedBuf* buf, unsigned bytes) {
 	}
 
 	io_uring_sqe* sqe = io_uring_get_sqe(&rings[tid]);
+	if(sqe == 0x0) {
+		std::cout << "recv sqe empty" << std::endl;
+		Disconnect(uid);
+		return;
+	}
 	io_uring_prep_recv(sqe, my_clients[uid]->sock_fd, &(my_clients[uid]->recv_buf->buf_addr[recv_buf_start_idx]), MAX_BUFFER - recv_buf_start_idx, 0);
 
 	io_uring_sqe_set_data(sqe, my_clients[uid]->recv_buf);
@@ -403,7 +414,7 @@ void handle_move_msg(MsgNode* msg) {
 		my_clients[my_id]->near_id.insert(msg->gid);
 		send_put_object_packet(my_clients[my_id]->sock_fd, msg->gid, msg->x, msg->y, my_id);
 		// ������� HI �����ֱ�
-		msgQueue[msg->from_wid].Enq(tid, my_id, Msg::HI, mx, my, msg->from_cid, my_clients[my_id]->gid);
+		msgQueue[msg->from_wid].Enq(tid, my_id, Msg::HI, mx, my, my_clients[my_id]->move_time, msg->from_cid, my_clients[my_id]->gid);
 		return;
 	}
 	
@@ -411,7 +422,7 @@ void handle_move_msg(MsgNode* msg) {
 	if (in_view && (my_clients[my_id]->near_id.count(msg->gid) != 0)) {
 		// �׳� ������ send_pos_packet
 		send_pos_packet(my_clients[my_id]->sock_fd, msg->gid, msg->x, msg->y
-			, my_clients[my_id]->move_time, my_id);
+			, msg->move_time, my_id);
 		return;
 	}
 
@@ -421,7 +432,7 @@ void handle_move_msg(MsgNode* msg) {
 		my_clients[my_id]->near_id.erase(msg->gid);
 		send_remove_object_packet(my_clients[my_id]->sock_fd, msg->gid, my_id);
 		// ������׵� BYE �����ֱ�
-		msgQueue[msg->from_wid].Enq(tid, my_id, Msg::BYE, -1, -1, msg->from_cid, my_clients[my_id]->gid);
+		msgQueue[msg->from_wid].Enq(tid, my_id, Msg::BYE, -1, -1, 0, msg->from_cid, my_clients[my_id]->gid);
 		return;
 	}
 }
@@ -695,7 +706,7 @@ int main()
 			new_player->is_connected = false;
 			new_player->gid = global_id++;
 
-			msgQueue[cq_idx].Enq(-1, -1, Msg::NEW_CLI, -1, -1, -1, -1, new_player);
+			msgQueue[cq_idx].Enq(-1, -1, Msg::NEW_CLI, -1, -1, 0, -1, -1, new_player);
 
 		}
 		else{

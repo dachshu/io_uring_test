@@ -170,12 +170,12 @@ public:
 		}
 	}
 
-	void Broadcast(int wid, int cid, Msg msg, int x, int y, int gid) {
+	void Broadcast(int wid, int cid, Msg msg, int x, int y, unsigned move_time, int gid) {
 		start_op();
 		ZoneNode* curr = head.GetNext();
 		while (curr != &tail) {
 			if (false == curr->IsMarked() && !(curr->worker_id == wid && curr->cid == cid)) {
-				msgQueue[curr->worker_id].Enq(wid, cid, msg, x, y, curr->cid, gid);
+				msgQueue[curr->worker_id].Enq(wid, cid, msg, x, y, move_time, curr->cid, gid);
 			}
 			curr = curr->GetNext();
 		}
