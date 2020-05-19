@@ -153,7 +153,7 @@ void Disconnect(int id)
 
 	//2. broadcast
 	for (auto i : my_clients[id]->broadcast_zone) {
-		zone[i % ZONE_SIZE][i / ZONE_SIZE].Broadcast(tid, id, Msg::BYE, -1, -1, my_clients[id]->gid);
+		zone[i % ZONE_SIZE][i / ZONE_SIZE].Broadcast(tid, id, Msg::BYE, -1, -1, 0, my_clients[id]->gid);
 	}
 
 
@@ -231,7 +231,7 @@ void ProcessMove(int id, unsigned char dir)
 
 	// 2. broadcast
 	for (auto i : my_clients[id]->broadcast_zone) {
-		zone[i % ZONE_SIZE][i / ZONE_SIZE].Broadcast(tid, id, Msg::MOVE, x, y, my_clients[id]->gid);
+		zone[i % ZONE_SIZE][i / ZONE_SIZE].Broadcast(tid, id, Msg::MOVE, x, y, my_clients[id]->move_time, my_clients[id]->gid);
 	}
 	set<int> new_zone;
 	get_new_zone(new_zone, x, y);
@@ -239,7 +239,7 @@ void ProcessMove(int id, unsigned char dir)
 	// ���� ��� �� zone
 	for (auto i : new_zone) {
 		if (my_clients[id]->broadcast_zone.count(i) == 0) {
-			zone[i % ZONE_SIZE][i / ZONE_SIZE].Broadcast(tid, id, Msg::MOVE, x, y, my_clients[id]->gid);
+			zone[i % ZONE_SIZE][i / ZONE_SIZE].Broadcast(tid, id, Msg::MOVE, x, y, my_clients[id]->move_time, my_clients[id]->gid);
 		}
 	}
 	my_clients[id]->broadcast_zone.swap(new_zone);
@@ -277,7 +277,7 @@ void ProcessLogin(int user_id, char* id_str)
 	// ���� ��� �� zone
 	for (auto i : new_zone) {
 		zone[i % ZONE_SIZE][i / ZONE_SIZE].Broadcast(tid, user_id, Msg::MOVE
-			, my_clients[user_id]->x, my_clients[user_id]->y, my_clients[user_id]->gid);
+			, my_clients[user_id]->x, my_clients[user_id]->y, my_clients[user_id]->move_time, my_clients[user_id]->gid);
 	}
 	my_clients[user_id]->broadcast_zone.swap(new_zone);
 }
@@ -377,7 +377,7 @@ void handle_move_msg(MsgNode* msg) {
 		my_clients[my_id]->near_id.insert(msg->gid);
 		send_put_object_packet(my_clients[my_id]->sock_fd, msg->gid, msg->x, msg->y, my_id);
 		// ������� HI �����ֱ�
-		msgQueue[msg->from_wid].Enq(tid, my_id, Msg::HI, mx, my, msg->from_cid, my_clients[my_id]->gid);
+		msgQueue[msg->from_wid].Enq(tid, my_id, Msg::HI, mx, my ,my_clients[my_id]->move_time, msg->from_cid, my_clients[my_id]->gid);
 		return;
 	}
 	
@@ -395,7 +395,7 @@ void handle_move_msg(MsgNode* msg) {
 		my_clients[my_id]->near_id.erase(msg->gid);
 		send_remove_object_packet(my_clients[my_id]->sock_fd, msg->gid, my_id);
 		// ������׵� BYE �����ֱ�
-		msgQueue[msg->from_wid].Enq(tid, my_id, Msg::BYE, -1, -1, msg->from_cid, my_clients[my_id]->gid);
+		msgQueue[msg->from_wid].Enq(tid, my_id, Msg::BYE, -1, -1, 0, msg->from_cid, my_clients[my_id]->gid);
 		return;
 	}
 }
@@ -668,7 +668,7 @@ int main()
 				new_player->is_connected = false;
 				new_player->gid = global_id++;
 
-				msgQueue[cq_idx].Enq(-1, -1, Msg::NEW_CLI, -1, -1, -1, -1, new_player);
+				msgQueue[cq_idx].Enq(-1, -1, Msg::NEW_CLI, -1, -1, 0, -1, -1, new_player);
 
 			}
 			else{

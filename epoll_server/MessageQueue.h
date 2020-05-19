@@ -5,7 +5,7 @@
 #include <vector>
 #include "common.h"
 
-#define INIT_MSG_SIZE MAX_CLIENT*128
+#define INIT_MSG_SIZE MAX_CLIENT*512
 #define INIT_MSG_CAPACITY int(INIT_MSG_SIZE*(1.5))
 
 
@@ -20,6 +20,7 @@ public:
 	Msg msg;
 	int x;
 	int y;
+	unsigned move_time;
 	int to;
 	int gid;
 	void* info;
@@ -29,8 +30,8 @@ public:
 	MsgNode* next;
 
 	MsgNode() { next = nullptr; }
-	MsgNode(int wid, int cid, Msg msg, int x, int y, int to) :
-		from_wid(wid), from_cid(cid), msg(msg), x(x), y(y), to(to) {
+	MsgNode(int wid, int cid, Msg msg, int x, int y, unsigned mv_time, int to) :
+		from_wid(wid), from_cid(cid), msg(msg), x(x), y(y), move_time(mv_time), to(to) {
 		next = nullptr;
 	}
 	~MsgNode() {}
@@ -141,7 +142,7 @@ public:
 			reinterpret_cast<long long>(new_node));
 	}
 
-	void Enq(int wid, int cid, Msg msg, int x, int y, int to, int gid
+	void Enq(int wid, int cid, Msg msg, int x, int y, unsigned move_time, int to, int gid
 		, void* info = nullptr)
 	{
 		msg_start_op();
@@ -150,6 +151,7 @@ public:
 		e->from_cid = cid;
 		e->msg = msg;
 		e->x = x; e->y = y;
+		e->move_time = move_time;
 		e->to = to;
 		e->gid = gid;
 		e->info = info;
