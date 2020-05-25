@@ -16,7 +16,7 @@ using namespace std;
 using namespace chrono;
 
 #define IORING_FEAT_FAST_POLL (1U << 5)
-#define MAX_ENTRIES 4096
+#define MAX_ENTRIES	32768 
 
 //atomic_int num_client{ 0 };
 
@@ -593,6 +593,7 @@ void do_worker(int t)
 		//processed_io += numResults;
 
 		if(should_submit) io_uring_submit(&rings[tid]);
+		
 	}
 }
 
@@ -635,7 +636,7 @@ int main()
 	io_uring main_ring;
 	memset(&main_params, 0, sizeof(main_params));
 
-	if(io_uring_queue_init_params(4096, &main_ring, &main_params)< 0){
+	if(io_uring_queue_init_params(MAX_ENTRIES, &main_ring, &main_params)< 0){
 		cout << "io_uring_init failed.." << endl;
 		exit(1);
 	}
@@ -655,16 +656,17 @@ int main()
 	for (int i = 0; i < NUM_WORKER_THREADS; ++i) {
 		memset(&params[i], 0, sizeof(params[i]));
 
-		if(io_uring_queue_init_params(4096, &rings[i], &params[i]) < 0){
+		if(io_uring_queue_init_params(MAX_ENTRIES, &rings[i], &params[i]) < 0){
 			cout << "io_uring_init failed.." << endl;
 			exit(1);
 		}
+		cout << params[i].sq_entries << endl;
 	}
 
 	vector <thread> worker_threads;
 	for (int i = 0; i < NUM_WORKER_THREADS; ++i) worker_threads.emplace_back(do_worker, i);
 
-	cout << "server start!!!" << endl;
+	cout << "server start!!" << endl;
 	int cq_idx = 0;
 	int global_id = 0;
 
