@@ -36,8 +36,10 @@ thread_local SOCKETINFO* my_clients[per_max_clients];
 thread_local int empty_cli_idx[per_max_clients];
 thread_local int num_my_clients = 0;
 thread_local int rem_sqe_cnt = MAX_ENTRIES;
+thread_local bool should_submit = false;
 
 int unsigned long my_next = 1;
+
 
 int my_rand(){
     my_next = my_next * 1103515245 + 12345;
@@ -79,6 +81,7 @@ void send_packet(unsigned sock_fd, ExtendedBuf* send_buf, int cid, int len)
 
 	send_buf->cid = cid;
 	io_uring_sqe_set_data(sqe, send_buf);
+	should_submit = true;
 	
 	--(rem_sqe_cnt);
 }
@@ -397,6 +400,7 @@ void handle_recv(unsigned int uid, ExtendedBuf* buf, unsigned bytes) {
 	io_uring_prep_recv(sqe, my_clients[uid]->sock_fd, &(my_clients[uid]->recv_buf->buf_addr[recv_buf_start_idx]), MAX_BUFFER - recv_buf_start_idx, 0);
 
 	io_uring_sqe_set_data(sqe, my_clients[uid]->recv_buf);
+	should_submit = true;
 
 
 }
@@ -490,7 +494,7 @@ void handle_new_client(MsgNode* msg) {
 
 	io_uring_sqe_set_data(sqe, my_clients[user_id]->recv_buf);
 
-	
+	should_submit = true;
 	//my_clients.insert(make_pair(user_id, new_player));
 
 }
@@ -507,6 +511,7 @@ void do_worker(int t)
 	//unsigned long long processed_io = 0;
 
 	while (true) {
+		should_submit = false;
 		//auto duration = high_resolution_clock::now() - last_checked_time;
 		//if (1000 * 10 < duration_cast<milliseconds>(duration).count()) {
 		//	cout << "thread[" << tid << "] : " << processed_io << endl;
@@ -587,7 +592,7 @@ void do_worker(int t)
 	
 		//processed_io += numResults;
 
-		io_uring_submit(&rings[tid]);
+		if(should_submit) io_uring_submit(&rings[tid]);
 	}
 }
 
@@ -659,7 +664,7 @@ int main()
 	vector <thread> worker_threads;
 	for (int i = 0; i < NUM_WORKER_THREADS; ++i) worker_threads.emplace_back(do_worker, i);
 
-	cout << "server start" << endl;
+	cout << "server start!!!" << endl;
 	int cq_idx = 0;
 	int global_id = 0;
 
