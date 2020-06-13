@@ -73,7 +73,7 @@ public:
 
 	MsgNode* get() {
 		if (emptyNodes.empty()) {
-			std::cout << "Msg node empty" << std::endl;
+			//std::cout << "Msg node empty" << std::endl;
 			return (new MsgNode);
 		}
 
@@ -90,7 +90,7 @@ public:
 			}
 		}
 
-        std::cout << "Msg node all used" << std::endl;
+        //std::cout << "Msg node all used" << std::endl;
 		return (new MsgNode);
 		
 	}

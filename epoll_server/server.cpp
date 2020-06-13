@@ -34,6 +34,8 @@ const unsigned int per_max_clients = int(MAX_CLIENT / 2);
 thread_local SOCKETINFO* my_clients[per_max_clients];
 thread_local int empty_cli_idx[per_max_clients];
 thread_local int num_my_clients = 0;
+//thread_local unsigned int num_ios = 0;
+//thread_local unsigned int num_dq_msgs = 0;
 
 int unsigned long my_next = 1;
 
@@ -60,6 +62,7 @@ bool is_near(int x1, int y1, int x2, int y2)
 void send_packet(unsigned sock_fd, ExtendedBuf* send_buf, int cid, int len)
 {
 	send(sock_fd, send_buf->buf_addr, len, 0);
+    //++num_ios;
 	sendBufferPool[tid].return_sendBuffer(send_buf);
 }
 
@@ -468,10 +471,12 @@ void do_worker(int t)
 
 	while (true) {
 		//auto duration = high_resolution_clock::now() - last_checked_time;
-		//if (1000 * 10 < duration_cast<milliseconds>(duration).count()) {
-		//	cout << "thread[" << tid << "] : " << processed_io << endl;
+		//if (1000 * 1 < duration_cast<milliseconds>(duration).count()) {
+			//cout << "thread[" << tid << "] : " << num_ios << ", " << num_dq_msgs << endl;
+            //num_dq_msgs = 0;
+            //num_ios = 0;
 		//	processed_io = 0;
-		//	last_checked_time = high_resolution_clock::now();
+			//last_checked_time = high_resolution_clock::now();
 		//}
 
 		int checked_queue = 0;
@@ -479,6 +484,7 @@ void do_worker(int t)
 		{
 			MsgNode* msg = msgQueue[tid].Deq();
 			if (msg == nullptr) break;
+            //++num_dq_msgs;
 			
 			if (msg->msg == Msg::NEW_CLI) {
 				handle_new_client(msg);
@@ -525,6 +531,7 @@ void do_worker(int t)
 			int bytes = recv(my_clients[uid]->sock_fd
 							,&(my_clients[uid]->recv_buf->buf_addr[my_clients[uid]->recv_buf_start_idx])
 							, MAX_BUFFER - my_clients[uid]->recv_buf_start_idx, 0);
+            //++num_ios;
 
 			switch (ex_buf->event_type)
 			{
