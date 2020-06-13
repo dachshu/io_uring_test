@@ -86,6 +86,7 @@ public:
 				emptyNodes[idx] = emptyNodes[last];
 				emptyNodes.pop_back();
 
+				ret->next = nullptr;
 				return ret;
 			}
 		}

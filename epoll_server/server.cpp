@@ -152,7 +152,7 @@ void Disconnect(int id)
 {
 	if (my_clients[id] == nullptr) return;
 	
-	zone[my_clients[id]->my_zone_row][my_clients[id]->my_zone_col].Remove(tid, id);
+	zone[my_clients[id]->my_zone_row][my_clients[id]->my_zone_col].Remove(tid, id, my_clients[id]->zone_node_buffer);
 
 	//2. broadcast
 	for (auto i : my_clients[id]->broadcast_zone) {
@@ -222,12 +222,10 @@ void ProcessMove(int id, unsigned char dir)
 	int zc = int(x / ZONE_SIZE);
 	int zr = int(y / ZONE_SIZE);
 	if (zc != my_clients[id]->my_zone_col || zr != my_clients[id]->my_zone_row) {
-		int idx = -1;
-		while (idx == -1) {
-			idx = get_empty_zone_nodeIdx(my_clients[id]);
-		}
-		zone[zr][zc].Add(&(my_clients[id]->zone_nodes[idx]));
-		zone[my_clients[id]->my_zone_row][my_clients[id]->my_zone_col].Remove(tid, id);
+		ZoneNode* zn = my_clients[id]->zone_node_buffer.get();
+		zn->cid = id; zn->worker_id = tid;
+		zone[zr][zc].Add(zn);
+		zone[my_clients[id]->my_zone_row][my_clients[id]->my_zone_col].Remove(tid, id, my_clients[id]->zone_node_buffer);
 		my_clients[id]->my_zone_col = zc;
 		my_clients[id]->my_zone_row = zr;
 	}
@@ -264,11 +262,9 @@ void ProcessLogin(int user_id, char* id_str)
 	//int idx = get_empty_zone_nodeIdx(my_clients[user_id]);
 	int idx = -1;
 	
-	while (idx == -1) {
-		idx = get_empty_zone_nodeIdx(my_clients[user_id]);
-		//if(retry) mem_exceed_cnt.fetch_add(1);
-	}
-	zone[zr][zc].Add(&(my_clients[user_id]->zone_nodes[idx]));
+	ZoneNode* zn = my_clients[user_id]->zone_node_buffer.get();
+	zn->cid = user_id; zn->worker_id = tid;
+	zone[zr][zc].Add(zn);
 	my_clients[user_id]->my_zone_col = zc;
 	my_clients[user_id]->my_zone_row = zr;
 	
@@ -352,7 +348,7 @@ void handle_recv(unsigned int uid, ExtendedBuf* buf, unsigned bytes) {
 		}
 		else {
 			//memcpy(my_clients[uid]->pre_net_buf + prev_packet_size, p, remain);4
-			memcpy(buf->buf_addr, &buf->buf_addr[recv_buf_start_idx - prev_packet_size], prev_packet_size);
+			memcpy(&buf->buf_addr[prev_packet_size], p, remain);
 			prev_packet_size += remain;
 			recv_buf_start_idx = prev_packet_size;
 			remain = 0;
@@ -438,10 +434,7 @@ void handle_new_client(MsgNode* msg) {
 	new_player->my_woker_id = tid;
 	new_player->recv_buf->cid = user_id;
 
-	for (int i = 0; i < MAX_ZONE_NODE; ++i) {
-		new_player->zone_nodes[i].worker_id = tid;
-		new_player->zone_nodes[i].cid = user_id;
-	}
+	new_player->zone_node_buffer.set(new_player->my_woker_id, new_player->cid);
 
 
 	my_clients[user_id] = new_player;

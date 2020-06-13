@@ -76,15 +76,6 @@ void end_op() {
 	reservations[tid].store(0xffffffffffffffff, std::memory_order_release);
 }
 
-void retire(ZoneNode* ptr) {
-	ptr->retired_epoch = epoch.load(std::memory_order_acquire);
-	ptr->used = false;
-
-	//counter++;
-	//if (counter % epoch_freq == 0)
-	epoch.fetch_add(1, std::memory_order_release);
-}
-
 unsigned long long get_min_reservation() {
 	unsigned long long min_re = 0xffffffffffffffff;
 	for (int i = 0; i < NUM_WORKER_THREADS; ++i) {
@@ -92,6 +83,61 @@ unsigned long long get_min_reservation() {
 	}
 	return min_re;
 }
+
+class ZoneNodeBuffer { // per client
+	std::vector<ZoneNode*> emptyNodes;
+
+public:
+	ZoneNodeBuffer() {
+		emptyNodes.reserve(int(INIT_NUM_ZONE_NODE * 1.5));
+		for (int i = 0; i < INIT_NUM_ZONE_NODE; ++i) {
+			emptyNodes.emplace_back(new ZoneNode);
+		}
+	}
+
+	void set(int wid, int cid)
+	{
+		for (auto& zn : emptyNodes) {
+			zn->cid = cid;
+			zn->worker_id = wid;
+		}
+	}
+
+	ZoneNode* get() {
+		if (emptyNodes.empty()) {
+			std::cout << "Zone node empty" << std::endl;
+			return (new ZoneNode);
+		}
+
+		unsigned int max_safe_epoch = get_min_reservation();
+		int idx = emptyNodes.size() - 1;
+		int last = idx;
+		for (; idx >= 0; --idx) {
+			if (emptyNodes[idx]->retired_epoch < max_safe_epoch) {
+				ZoneNode* ret = emptyNodes[idx];
+				emptyNodes[idx] = emptyNodes[last];
+				emptyNodes.pop_back();
+
+				ret->SetNext(nullptr);
+				return ret;
+			}
+		}
+
+		return (new ZoneNode);
+
+	}
+
+
+	void retire(ZoneNode* zoneNode) {
+		zoneNode->retired_epoch = epoch.load(std::memory_order_acquire);
+
+		emptyNodes.push_back(zoneNode);
+
+		//counter++;
+		//if (counter % epoch_freq == 0)
+		epoch.fetch_add(1, std::memory_order_release);
+	}
+};
 
 
 class Zone {
@@ -132,16 +178,20 @@ public:
 
 	}
 
-	void Find(int wid, int cid, ZoneNode** pred, ZoneNode** curr)
+	void Find(int wid, int cid, ZoneNode** pred, ZoneNode** curr, ZoneNodeBuffer& buffer)
 	{
 	retry:
 		ZoneNode* pr = &head;
 		ZoneNode* cu = pr->GetNext();
-		while (true) {
+		while (cu != &tail) {
 			bool removed;
 			ZoneNode* su = cu->GetNextWithMark(&removed);
 			if (true == removed) {
-				goto retry;
+				if (false == pr->CAS(cu, su, false, false))
+					goto retry;
+				buffer.retire(cu);
+				cu = su;
+				su = cu->GetNextWithMark(&removed);
 			}
 
 			if (cu->worker_id == wid && cu->cid == cid) {
@@ -151,24 +201,29 @@ public:
 			pr = cu;
 			cu = cu->GetNext();
 		}
+
+		std::cout << "can't fine a zone node" << std::endl;
+		while (true) {};
 	}
 
 
-	void Remove(int wid, int cid)
+	void Remove(int wid, int cid, ZoneNodeBuffer& buffer)
 	{
 		start_op();
 		ZoneNode* pred, * curr;
 		while (true) {
-			Find(wid, cid, &pred, &curr);
+			Find(wid, cid, &pred, &curr, buffer);
+
 			ZoneNode* succ = curr->GetNext();
-			curr->TryMark(succ);
-			if (true == pred->CAS(curr, succ, false, false)) {
-				retire(curr);
-				end_op();
-				return;
-			}
+			if (false == curr->TryMark(succ)) continue;
+			bool su = pred->CAS(curr, succ, false, false);
+			if (su) buffer.retire(curr);
+			end_op();
+			return;
+			
 		}
 	}
+
 
 	void Broadcast(int wid, int cid, Msg msg, int x, int y, unsigned move_time, int gid) {
 		start_op();

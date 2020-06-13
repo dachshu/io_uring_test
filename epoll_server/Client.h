@@ -34,23 +34,9 @@ struct SOCKETINFO
 	std::set <int> near_id;
 
 	int my_woker_id;
-	ZoneNode zone_nodes[MAX_ZONE_NODE];
+	ZoneNodeBuffer zone_node_buffer;
 	std::set<int> broadcast_zone;
 	int my_zone_col;
 	int my_zone_row;
 };
 
-int get_empty_zone_nodeIdx(SOCKETINFO* cli) {
-	unsigned long long max_safe_epoch = get_min_reservation();
-
-	for (int i = 0; i < MAX_ZONE_NODE; ++i) {
-		if (cli->zone_nodes[i].used == false
-			&& cli->zone_nodes[i].retired_epoch < max_safe_epoch) {
-			cli->zone_nodes[i].used = true;
-			return i;
-		}
-	}
-
-	std::cout << "zone node empty!!" << std::endl;
-	return -1;
-}

@@ -21,7 +21,7 @@
 #define MAX_BUFFER			128
 #define NUM_WORKER_THREADS	4
 #define LOCAL_SEND_BUF_CNT	int((MAX_CLIENT * 128))
-#define MAX_ZONE_NODE	256	
+#define INIT_NUM_ZONE_NODE		16	
 
 #define RECV_RQ_SIZE		50
 #define SEND_RQ_SIZE		400
