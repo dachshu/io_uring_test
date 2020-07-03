@@ -319,45 +319,40 @@ bool ProcessPacket(int id, void* buff)
 }
 
 void handle_recv(unsigned int uid, ExtendedBuf* buf, unsigned bytes) {
-	int recv_buf_start_idx = my_clients[uid]->recv_buf_start_idx;
-	char* p = &(buf->buf_addr[recv_buf_start_idx]);
+	char* p = my_clients[uid]->recv_buf->buf_addr;
 	int remain = bytes;
 	int packet_size;
 	int prev_packet_size = my_clients[uid]->prev_packet_size;
 
 	if (0 == prev_packet_size)
 		packet_size = 0;
-	else packet_size = my_clients[uid]->recv_buf->buf_addr[recv_buf_start_idx - prev_packet_size];
+	else packet_size = my_clients[uid]->recv_buf->buf_addr[0];
 	
-	int rem = 0;
 	while (remain > 0) {
 		if (0 == packet_size) packet_size = p[0];
 		int required = packet_size - prev_packet_size;
 		if (required <= remain) {
 			//memcpy(my_clients[uid]->pre_net_buf + prev_packet_size, p, required);
-			bool su = ProcessPacket(uid, &(buf->buf_addr[recv_buf_start_idx - prev_packet_size]));
+			bool su = ProcessPacket(uid, p);
 			if (su == false) {
 				Disconnect(uid);
 				return;
 			}
 			remain -= required;
-			p += required;
-			recv_buf_start_idx += required;
+			p += packet_size;
 			prev_packet_size = 0;
 			packet_size = 0;
 		}
 		else {
+			if(prev_packet_size == 0){
+				memcpy(&my_clients[uid]->recv_buf->buf_addr[0], p, remain);
+			}
 			//memcpy(my_clients[uid]->pre_net_buf + prev_packet_size, p, remain);4
-			memcpy(&buf->buf_addr[prev_packet_size], p, remain);
 			prev_packet_size += remain;
-			recv_buf_start_idx = prev_packet_size;
 			remain = 0;
-			rem = 1;
 		}
 	}
-	recv_buf_start_idx = rem * recv_buf_start_idx;
 	
-	my_clients[uid]->recv_buf_start_idx = recv_buf_start_idx;
 	my_clients[uid]->prev_packet_size = prev_packet_size;
 	
 
@@ -522,8 +517,8 @@ void do_worker(int t)
 			
 			unsigned int uid = ex_buf->cid;
 			int bytes = recv(my_clients[uid]->sock_fd
-							,&(my_clients[uid]->recv_buf->buf_addr[my_clients[uid]->recv_buf_start_idx])
-							, MAX_BUFFER - my_clients[uid]->recv_buf_start_idx, 0);
+							,&(my_clients[uid]->recv_buf->buf_addr[my_clients[uid]->prev_packet_size])
+							, MAX_BUFFER - my_clients[uid]->prev_packet_size, 0);
             //++num_ios;
 
 			switch (ex_buf->event_type)
@@ -663,7 +658,6 @@ int main()
 
 				new_player->sock_fd = cli_sock_fd;
 				new_player->prev_packet_size = 0;
-				new_player->recv_buf_start_idx = 0;
 
 				new_player->is_connected = false;
 				new_player->gid = global_id++;

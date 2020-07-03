@@ -19,7 +19,6 @@ struct SOCKETINFO
     ExtendedBuf* recv_buf;
 	
 	int		prev_packet_size;
-	int		recv_buf_start_idx;
 
 	unsigned sock_fd;
 
